@@ -13,13 +13,14 @@
     <title>TRT Optimization Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
-      {
-        "imports": {
-          "react": "https://aistudiocdn.com/react@^19.1.1",
-          "react-dom/client": "https://aistudiocdn.com/react-dom@^19.1.1/client"
-        }
-      }
-    </script>
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.1.1/client",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0"
+  }
+}
+</script>
     <style>
       @keyframes fadeIn {
         from { opacity: 0; }
@@ -306,9 +307,8 @@
                 if (session.result) {
                   setAnalysisResult(session.result);
                   setAppState('RESULT');
-                } else if (session.paymentConfirmed) {
-                  runAnalysis(session.formData, session);
                 } else {
+                  // If a paid session exists (even if it failed), go to payment screen to allow retry
                   setAppState('AWAITING_PAYMENT');
                 }
               } else {
@@ -329,34 +329,27 @@
         const handleSymptomChange = (symptoms) => setFormData(prev => ({ ...prev, symptoms }));
         
         const handleFinalizeAndAnalyze = () => {
-          const isPaymentConfirmed = analysisSession?.paymentConfirmed;
+          const url = confirmationUrl.trim();
+          if (!url) {
+            setError("Please paste the confirmation URL from Stripe to verify your purchase.");
+            return;
+          }
           
-          if (isPaymentConfirmed) {
-              setError('');
-              runAnalysis(formData, analysisSession);
-          } else {
-              const url = confirmationUrl.trim();
-              if (!url) {
-                setError("Please paste the confirmation URL from Stripe to verify your purchase.");
-                return;
-              }
-              
-              const match = url.match(/(cs_(live|test)_[a-zA-Z0-9]+)/);
-              const potentialSessionId = match ? match[0] : null;
+          const match = url.match(/(cs_(live|test)_[a-zA-Z0-9]+)/);
+          const potentialSessionId = match ? match[0] : null;
 
-              if (potentialSessionId && analysisSession) {
-                setError('');
-                const updatedSession = { ...analysisSession, paymentConfirmed: true };
-                localStorage.setItem('analysisSession', JSON.stringify(updatedSession));
-                setAnalysisSession(updatedSession);
-                runAnalysis(updatedSession.formData, updatedSession);
-              } else {
-                let errorMsg = "Could not find a valid Stripe Session ID in the URL. Please ensure you copied the entire address from the Stripe confirmation page.";
-                if (!analysisSession) {
-                    errorMsg += " Your session may have also expired. Please start over."
-                }
-                setError(errorMsg);
-              }
+          if (potentialSessionId && analysisSession) {
+            setError('');
+            const updatedSession = { ...analysisSession, paymentConfirmed: true };
+            localStorage.setItem('analysisSession', JSON.stringify(updatedSession));
+            setAnalysisSession(updatedSession);
+            runAnalysis(formData, updatedSession);
+          } else {
+            let errorMsg = "Could not find a valid Stripe Session ID in the URL. Please ensure you copied the entire address from the Stripe confirmation page.";
+            if (!analysisSession) {
+                errorMsg += " Your session may have also expired. Please start over."
+            }
+            setError(errorMsg);
           }
         };
 
@@ -368,7 +361,7 @@
           setError('');
           
           let sessionToUse = analysisSession;
-          if (!sessionToUse) {
+          if (!sessionToUse || sessionToUse.expiry < Date.now()) {
               const newSession = {
                   token: crypto.randomUUID(),
                   expiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -468,9 +461,7 @@
                         )
                     );
                 case 'AWAITING_PAYMENT': {
-                     const isPaymentConfirmed = analysisSession?.paymentConfirmed;
-                     const buttonText = isPaymentConfirmed ? "Show My Analysis" : "Verify & Show My Analysis";
-                     const isButtonDisabled = !isPaymentConfirmed && !confirmationUrl.trim();
+                     const isButtonDisabled = !confirmationUrl.trim();
 
                      return React.createElement("div", { className: "flex flex-col items-center justify-center text-center animate-fade-in" },
                         React.createElement(SparklesIcon, { className: "w-12 h-12 mx-auto text-yellow-400 mb-4" }),
@@ -486,21 +477,19 @@
                         React.createElement("p", { className: "text-xs text-gray-500 mt-3 text-center" }, "You'll be directed to Stripe to complete your purchase in a new tab."),
                         React.createElement("div", { className: "w-full border-t border-gray-700 my-8" }),
                         React.createElement(CreditCardIcon, { className: "w-10 h-10 text-blue-400 mb-3" }),
-                        React.createElement("h3", { className: "text-xl font-bold text-gray-100 mb-2" }, "Manual Recovery"),
+                        React.createElement("h3", { className: "text-xl font-bold text-gray-100 mb-2" }, "Already Paid?"),
                         React.createElement("p", { className: "text-gray-400 max-w-lg mx-auto mb-6" }, 
-                           isPaymentConfirmed 
-                           ? "Your payment is confirmed! Click below to get your analysis."
-                           : "If you've already paid, paste the full Stripe URL from your address bar below to verify your purchase and unlock your analysis."
+                          "If you've already paid or your analysis failed, paste the full Stripe confirmation URL from your address bar below to verify your purchase and run the analysis."
                         ),
                         React.createElement("div", { className: "w-full max-w-sm mx-auto mt-2 space-y-4" },
-                          !isPaymentConfirmed && React.createElement("div", null,
+                          React.createElement("div", null,
                             React.createElement("label", { htmlFor: "confirmationUrl", className: "block text-sm font-medium text-gray-300 mb-2" }, "Paste the full Stripe URL from your address bar:"),
                             React.createElement("input", { type: "text", id: "confirmationUrl", value: confirmationUrl, onChange: (e) => setConfirmationUrl(e.target.value), placeholder: 'https://buy.stripe.com/...', className: "w-full bg-gray-700 border-gray-600 text-white rounded-lg p-3 text-center focus:ring-blue-500 focus:border-blue-500" })
                           )
                         ),
                         error && React.createElement("div", { className: "mt-4 max-w-sm mx-auto bg-red-500/10 border border-red-400/30 text-red-300 px-4 py-2 rounded-lg text-sm", role: "alert" }, error),
                         React.createElement("button", { onClick: handleFinalizeAndAnalyze, disabled: isButtonDisabled, className: "mt-6 w-full max-w-sm mx-auto flex items-center justify-center gap-2 px-8 py-3 bg-blue-600 rounded-lg hover:bg-blue-500 font-bold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" },
-                            React.createElement(ShieldCheckIcon, { className: "w-5 h-5" }), buttonText
+                            React.createElement(ShieldCheckIcon, { className: "w-5 h-5" }), "Verify & Analyze"
                         )
                     );
                 }
@@ -537,7 +526,7 @@
               renderContent()
             ),
              React.createElement("footer", { className: "text-center mt-4" },
-              React.createElement("p", { className: "text-xs text-gray-600" }, "Version 3.0 - Secure Backend")
+              React.createElement("p", { className: "text-xs text-gray-600" }, "Version 3.2 - Configuration Fix")
             )
           )
         );
