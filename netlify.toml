@@ -1,19 +1,20 @@
-# This is the configuration file for Netlify.
-# It tells Netlify how to build and deploy your site, including your serverless function.
+# This configuration file tells Netlify how to build and deploy your site.
 
 [build]
-  # This command is not needed for your simple HTML/JS setup.
-  # command = "npm run build"
+  # This is the most critical line. It commands Netlify to run "npm install"
+  # to download the necessary packages (like @google/genai) for your function.
+  command = "npm install"
   
-  # The publish directory is the root of your site.
+  # This tells Netlify that your website's files (like index.html) are in the root directory.
   publish = "/"
 
 [functions]
-  # This is the crucial line. It tells Netlify that your serverless function
-  # code is located in the 'netlify/functions' directory.
+  # This tells Netlify where to find your serverless function code.
   directory = "netlify/functions"
 
-# This sets the Node.js version for the function environment to match your package.json.
+# This section provides specific settings for all functions.
 [functions."*"]
+  # Specifies the bundler to use for the function. 'esbuild' is modern and fast.
   node_bundler = "esbuild"
+  # Sets the Node.js runtime version to match your local environment and package requirements.
   node_version = 22
