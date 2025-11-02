@@ -1,20 +1,14 @@
-# This configuration file tells Netlify how to build and deploy your site.
+# This is the definitive Netlify configuration for your project.
 
 [build]
-  # This is the most critical line. It commands Netlify to run "npm install"
-  # to download the necessary packages (like @google/genai) for your function.
+  # This command is ESSENTIAL. It tells Netlify to install the 
+  # '@google/genai' package your function needs. Without this, the 
+  # function build fails, causing the 404 error.
   command = "npm install"
   
-  # This tells Netlify that your website's files (like index.html) are in the root directory.
-  publish = "/"
+  # This tells Netlify your website files (index.html) are in the root directory.
+  publish = "."
 
 [functions]
-  # This tells Netlify where to find your serverless function code.
+  # This tells Netlify that your serverless function is in this folder.
   directory = "netlify/functions"
-
-# This section provides specific settings for all functions.
-[functions."*"]
-  # Specifies the bundler to use for the function. 'esbuild' is modern and fast.
-  node_bundler = "esbuild"
-  # Sets the Node.js runtime version to match your local environment and package requirements.
-  node_version = 22
